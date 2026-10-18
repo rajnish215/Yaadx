@@ -1,9 +1,9 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 
+import 'firebase_options.dart';
 import 'auth/controllers/auth_controller.dart';
 
 import 'splash/splash_screen.dart';
@@ -11,23 +11,28 @@ import 'home/home_screen.dart';
 import 'calendar/calendar_screen.dart';
 import 'reminder/reminder_screen.dart';
 import 'reminder/reminder_controller.dart';
+import 'reminder/notification_service.dart';
 import 'home/widgets/bottom_navbar.dart';
 import 'profile/profile_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Initialize local notifications
+  await NotificationService.initialize();
+
+  // Launch app
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(
           create: (_) => ReminderController(),
         ),
-
         ChangeNotifierProvider(
           create: (_) => AuthController(),
         ),

@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../reminder/reminder_model.dart';
 
@@ -21,26 +22,24 @@ class SearchTile extends StatelessWidget {
       ),
       child: ListTile(
         onTap: onTap,
-
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xffFFE7E5),
-          child: const Icon(
+        leading: const CircleAvatar(
+          backgroundColor: Color(0xffFFE7E5),
+          child: Icon(
             Icons.celebration,
             color: Color(0xffF25F5C),
           ),
         ),
-
         title: Text(
-          reminder.title,
+          reminder.name,
           style: const TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
-
         subtitle: Text(
-          reminder.relation,
+          '${reminder.eventType} • ${reminder.relation}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-
         trailing: const Icon(
           Icons.arrow_forward_ios,
           size: 16,

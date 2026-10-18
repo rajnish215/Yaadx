@@ -1,7 +1,39 @@
+
 import 'package:flutter/material.dart';
+
+import '../../calendar/calendar_screen.dart';
+import '../../reminder/add_reminder_screen.dart';
+import '../../reminder/reminder_screen.dart';
 
 class QuickActions extends StatelessWidget {
   const QuickActions({super.key});
+
+  void _openAddReminder(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddReminderScreen(),
+      ),
+    );
+  }
+
+  void _openCalendar(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CalendarScreen(),
+      ),
+    );
+  }
+
+  void _openReminders(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ReminderScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -9,49 +41,49 @@ class QuickActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Quick Actions",
+          'Quick Actions',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
         ),
-        
         const SizedBox(height: 18),
-
-        // FIX: Saare cards ab ek hi Row mein hain
         Row(
-          children: const [
+          children: [
             Expanded(
               child: ActionCard(
                 icon: Icons.add_circle_outline,
-                title: "Add", // Text thoda chota kiya taaki fit ho
-                color: Color(0xffFFE6E8),
-                iconColor: Color(0xffFF5A7A),
+                title: 'Add',
+                color: const Color(0xffFFE6E8),
+                iconColor: const Color(0xffFF5A7A),
+                onTap: () => _openAddReminder(context),
               ),
             ),
-            SizedBox(width: 8), // Spacing kam ki hai
+            const SizedBox(width: 8),
             Expanded(
               child: ActionCard(
                 icon: Icons.calendar_month,
-                title: "Calendar",
-                color: Color(0xffE8EEFF),
-                iconColor: Color(0xff5B7FFF),
+                title: 'Calendar',
+                color: const Color(0xffE8EEFF),
+                iconColor: const Color(0xff5B7FFF),
+                onTap: () => _openCalendar(context),
               ),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Expanded(
               child: ActionCard(
                 icon: Icons.notifications_active_outlined,
-                title: "Reminders",
-                color: Color(0xffFFF2DD),
-                iconColor: Color(0xffF4A100),
+                title: 'Reminders',
+                color: const Color(0xffFFF2DD),
+                iconColor: const Color(0xffF4A100),
+                onTap: () => _openReminders(context),
               ),
             ),
-            SizedBox(width: 8),
-            Expanded(
+            const SizedBox(width: 8),
+            const Expanded(
               child: ActionCard(
                 icon: Icons.card_giftcard,
-                title: "Gifts", // Text adjust kiya taaki break na ho
+                title: 'Gifts',
                 color: Color(0xffE8F8F1),
                 iconColor: Color(0xff28A86B),
               ),
@@ -68,6 +100,7 @@ class ActionCard extends StatelessWidget {
   final String title;
   final Color color;
   final Color iconColor;
+  final VoidCallback? onTap;
 
   const ActionCard({
     super.key,
@@ -75,52 +108,59 @@ class ActionCard extends StatelessWidget {
     required this.title,
     required this.color,
     required this.iconColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 95, // Height kam ki taaki 4 items ke sath proportionate lage
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20), // Radius thoda kam kiya
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          height: 95,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x08000000),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 40, // Icon container chota kiya
-            width: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 22, // Icon size reduce kiya
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                height: 40,
+                width: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-          
-          const SizedBox(height: 10), // Spacing reduce ki
-          
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 11, // Font size chota kiya taaki single line me aaye
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis, // Agar text bada ho to "..." aa jaye
-          ),
-        ],
+        ),
       ),
     );
   }

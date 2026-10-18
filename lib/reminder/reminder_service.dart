@@ -1,66 +1,176 @@
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'reminder_model.dart';
 
 class ReminderService {
-
   // Singleton
-  static final ReminderService _instance =
-      ReminderService._internal();
+  static final ReminderService _instance = ReminderService._internal();
 
   factory ReminderService() => _instance;
 
   ReminderService._internal();
 
+  static const String _storageKey = 'yaadx_reminders';
+
+  // In-memory cache
   final List<ReminderModel> _database = [];
 
-  // Get All
-  Future<List<ReminderModel>> getReminders() async {
-    return List.from(_database);
-  }
+  bool _isLoaded = false;
 
-  // Get By Id
-  Future<ReminderModel?> getReminderById(
-    String id,
-  ) async {
-    try {
-      return _database.firstWhere(
-        (item) => item.id == id,
+  // Load reminders from persistent storage.
+  Future<void> _loadFromStorage() async {
+    if (_isLoaded) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedData = prefs.getString(_storageKey);
+
+    _database.clear();
+
+    if (savedData != null && savedData.isNotEmpty) {
+      final List<dynamic> decoded = jsonDecode(savedData);
+
+      _database.addAll(
+        decoded.map(
+          (item) => _fromJson(Map<String, dynamic>.from(item as Map)),
+        ),
       );
-    } catch (_) {
-      return null;
     }
+
+    _isLoaded = true;
   }
 
-  // Add
-  Future<void> addReminder(
-    ReminderModel reminder,
-  ) async {
-    _database.add(reminder);
+  // Save reminders to persistent storage.
+  Future<void> _saveToStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final encoded = jsonEncode(_database.map(_toJson).toList());
+
+    await prefs.setString(_storageKey, encoded);
   }
 
-  // Update
-  Future<void> updateReminder(
-    ReminderModel reminder,
-  ) async {
-    final index = _database.indexWhere(
-      (item) => item.id == reminder.id,
+  // Convert reminder to JSON.
+  Map<String, dynamic> _toJson(ReminderModel reminder) {
+    return {
+      'id': reminder.id,
+      'name': reminder.name,
+      'relation': reminder.relation,
+      'phoneNumber': reminder.phoneNumber,
+      'eventType': reminder.eventType,
+      'date': reminder.date.toIso8601String(),
+      'time': reminder.time,
+      'note': reminder.note,
+
+      // Photo memory fields
+      'memoryPhotoPaths': reminder.memoryPhotoPaths,
+      'memoryCaption': reminder.memoryCaption,
+
+      // Voice note
+      'voiceNotePath': reminder.voiceNotePath,
+
+      // Event preparation checklist
+      'voiceNoteCompleted': reminder.voiceNoteCompleted,
+      'messageSent': reminder.messageSent,
+
+      // Settings
+      'notificationEnabled': reminder.notificationEnabled,
+      'isCompleted': reminder.isCompleted,
+
+      // Metadata
+      'createdAt': reminder.createdAt.toIso8601String(),
+    };
+  }
+
+  // Convert JSON back to a reminder.
+  // Defaults maintain compatibility with older saved reminders.
+  ReminderModel _fromJson(Map<String, dynamic> json) {
+    final savedPhotoPaths = json['memoryPhotoPaths'];
+
+    return ReminderModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      relation: json['relation'] as String,
+      phoneNumber: json['phoneNumber'] as String?,
+      eventType: json['eventType'] as String,
+      date: DateTime.parse(json['date'] as String),
+      time: json['time'] as String,
+      note: json['note'] as String? ?? '',
+
+      // Photo memory fields
+      memoryPhotoPaths: savedPhotoPaths is List
+          ? savedPhotoPaths.whereType<String>().toList()
+          : const [],
+      memoryCaption: json['memoryCaption'] as String? ?? '',
+
+      // Voice note
+      voiceNotePath: json['voiceNotePath'] as String?,
+
+      // Event preparation checklist
+      voiceNoteCompleted: json['voiceNoteCompleted'] as bool? ?? false,
+      messageSent: json['messageSent'] as bool? ?? false,
+
+      // Settings
+      notificationEnabled: json['notificationEnabled'] as bool? ?? true,
+      isCompleted: json['isCompleted'] as bool? ?? false,
+
+      // Metadata
+      createdAt: DateTime.parse(json['createdAt'] as String),
     );
+  }
+
+  // Get all reminders.
+  Future<List<ReminderModel>> getReminders() async {
+    await _loadFromStorage();
+    return List<ReminderModel>.from(_database);
+  }
+
+  // Get reminder by ID.
+  Future<ReminderModel?> getReminderById(String id) async {
+    await _loadFromStorage();
+
+    for (final reminder in _database) {
+      if (reminder.id == id) {
+        return reminder;
+      }
+    }
+
+    return null;
+  }
+
+  // Add reminder.
+  Future<void> addReminder(ReminderModel reminder) async {
+    await _loadFromStorage();
+
+    _database.add(reminder);
+    await _saveToStorage();
+  }
+
+  // Update reminder.
+  Future<void> updateReminder(ReminderModel reminder) async {
+    await _loadFromStorage();
+
+    final index = _database.indexWhere((item) => item.id == reminder.id);
 
     if (index != -1) {
       _database[index] = reminder;
+      await _saveToStorage();
     }
   }
 
-  // Delete
-  Future<void> deleteReminder(
-    String id,
-  ) async {
-    _database.removeWhere(
-      (item) => item.id == id,
-    );
+  // Delete reminder.
+  Future<void> deleteReminder(String id) async {
+    await _loadFromStorage();
+
+    _database.removeWhere((item) => item.id == id);
+    await _saveToStorage();
   }
 
-  // Clear
+  // Clear all reminders.
   Future<void> clearAll() async {
+    await _loadFromStorage();
+
     _database.clear();
+    await _saveToStorage();
   }
 }
