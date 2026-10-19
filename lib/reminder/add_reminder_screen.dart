@@ -1,5 +1,5 @@
-
 import 'dart:io';
+import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,12 +10,10 @@ import 'reminder_controller.dart';
 import 'reminder_model.dart';
 
 class AddReminderScreen extends StatefulWidget {
-  const AddReminderScreen({
-    super.key,
-    this.selectedDate,
-  });
+  const AddReminderScreen({super.key, this.selectedDate, this.reminder});
 
   final DateTime? selectedDate;
+  final ReminderModel? reminder;
 
   @override
   State<AddReminderScreen> createState() => _AddReminderScreenState();
@@ -38,6 +36,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   String relation = 'Friend';
   String eventType = 'Birthday';
 
+  bool repeatYearly = true;
+  int advanceDays = 10;
+  bool voiceAlert = false;
   bool _isSaving = false;
   bool _isPickingPhotos = false;
 
@@ -47,7 +48,23 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   void initState() {
     super.initState();
 
-    final date = widget.selectedDate ?? DateTime.now();
+    final existing = widget.reminder;
+    if (existing != null) {
+      nameController.text = existing.name;
+      phoneController.text = existing.phoneNumber ?? '';
+      noteController.text = existing.note;
+      captionController.text = existing.memoryCaption;
+      relation = existing.relation;
+      eventType = existing.eventType;
+      selectedTime = TimeOfDay.fromDateTime(existing.eventDateTime);
+      repeatYearly = existing.repeatYearly;
+      advanceDays = existing.advanceDays;
+      voiceAlert = existing.voiceAlert;
+      _selectedPhotos.addAll(
+        existing.memoryPhotoPaths.map((path) => XFile(path)),
+      );
+    }
+    final date = existing?.date ?? widget.selectedDate ?? DateTime.now();
 
     selectedDate = DateTime(date.year, date.month, date.day);
   }
@@ -100,10 +117,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       prefixIcon: Icon(icon, color: _accent),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 18,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
         borderSide: BorderSide.none,
@@ -114,10 +128,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(
-          color: _accent,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: _accent, width: 1.5),
       ),
     );
   }
@@ -128,9 +139,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
     setState(() => _isPickingPhotos = true);
 
     try {
-      final photos = await _imagePicker.pickMultiImage(
-        imageQuality: 90,
-      );
+      final photos = await _imagePicker.pickMultiImage(imageQuality: 90);
 
       if (!mounted || photos.isEmpty) return;
 
@@ -177,6 +186,10 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
 
     for (var i = 0; i < _selectedPhotos.length; i++) {
       final photo = _selectedPhotos[i];
+      if (widget.reminder?.memoryPhotoPaths.contains(photo.path) ?? false) {
+        savedPaths.add(photo.path);
+        continue;
+      }
       final originalName = photo.name;
       final dotIndex = originalName.lastIndexOf('.');
 
@@ -201,6 +214,23 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   Future<void> saveReminder() async {
     if (_isSaving || !_formKey.currentState!.validate()) return;
 
+    final chosen = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+    if (!repeatYearly && !chosen.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choose a future date and time, or enable yearly repeat.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
 
     try {
@@ -217,22 +247,36 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       if (!mounted) return;
 
       final reminder = ReminderModel(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        id:
+            widget.reminder?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
         name: nameController.text.trim(),
         relation: relation,
         phoneNumber: phone,
         eventType: eventType,
         date: selectedDate,
-        time: selectedTime.format(context),
+        time:
+            '${selectedTime.hour.toString().padLeft(2, '0')}:'
+            '${selectedTime.minute.toString().padLeft(2, '0')}',
         note: noteController.text.trim(),
         memoryPhotoPaths: savedPhotoPaths,
         memoryCaption: captionController.text.trim(),
-        notificationEnabled: true,
-        isCompleted: false,
-        createdAt: DateTime.now(),
+        repeatYearly: repeatYearly,
+        advanceDays: advanceDays,
+        voiceAlert: voiceAlert,
+        voiceNotePath: widget.reminder?.voiceNotePath,
+        voiceNoteCompleted: widget.reminder?.voiceNoteCompleted ?? false,
+        messageSent: widget.reminder?.messageSent ?? false,
+        notificationEnabled: widget.reminder?.notificationEnabled ?? true,
+        isCompleted: widget.reminder?.isCompleted ?? false,
+        createdAt: widget.reminder?.createdAt ?? DateTime.now(),
       );
 
-      await controller.addReminder(reminder);
+      if (widget.reminder == null) {
+        await controller.addReminder(reminder);
+      } else {
+        await controller.updateReminder(reminder);
+      }
 
       if (!mounted) return;
 
@@ -247,8 +291,12 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save reminder. Please try again.'),
+        SnackBar(
+          content: Text(
+            e is PlatformException
+                ? e.message ?? 'Could not save alert.'
+                : 'Could not save reminder. Please try again.',
+          ),
         ),
       );
     } finally {
@@ -275,10 +323,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               Expanded(
                 child: Text(
                   'Photo Memories',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -386,10 +431,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
           const SizedBox(height: 8),
           const Text(
             'You can use this caption when sharing the photos later.',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
         ],
       ),
@@ -405,12 +447,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
         elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
-        title: const Text(
-          'Add Reminder',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
+        title: Text(
+          widget.reminder == null ? 'Add Reminder' : 'Edit Reminder',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
       body: Padding(
@@ -437,12 +476,13 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
-                decoration: inputDecoration(
-                  hint: 'WhatsApp Number (Optional)',
-                  icon: Icons.phone_outlined,
-                ).copyWith(
-                  helperText: 'Include country code, e.g. 919876543210',
-                ),
+                decoration:
+                    inputDecoration(
+                      hint: 'WhatsApp Number (Optional)',
+                      icon: Icons.phone_outlined,
+                    ).copyWith(
+                      helperText: 'Include country code, e.g. 919876543210',
+                    ),
                 validator: (value) {
                   final input = value?.trim() ?? '';
                   if (input.isEmpty) return null;
@@ -490,22 +530,13 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                   icon: Icons.celebration_outlined,
                 ),
                 items: const [
-                  DropdownMenuItem(
-                    value: 'Birthday',
-                    child: Text('Birthday'),
-                  ),
+                  DropdownMenuItem(value: 'Birthday', child: Text('Birthday')),
                   DropdownMenuItem(
                     value: 'Anniversary',
                     child: Text('Anniversary'),
                   ),
-                  DropdownMenuItem(
-                    value: 'Meeting',
-                    child: Text('Meeting'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Festival',
-                    child: Text('Festival'),
-                  ),
+                  DropdownMenuItem(value: 'Meeting', child: Text('Meeting')),
+                  DropdownMenuItem(value: 'Festival', child: Text('Festival')),
                   DropdownMenuItem(value: 'Other', child: Text('Other')),
                 ],
                 onChanged: (value) {
@@ -547,6 +578,49 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                   hint: 'Note (Optional)',
                   icon: Icons.notes,
                 ),
+              ),
+              const SizedBox(height: 20),
+              SwitchListTile(
+                title: const Text('Repeat every year'),
+                subtitle: const Text(
+                  'February 29 repeats on February 28 in non-leap years.',
+                ),
+                value: repeatYearly,
+                onChanged: (value) => setState(() => repeatYearly = value),
+              ),
+              DropdownButtonFormField<int>(
+                initialValue: advanceDays,
+                decoration: const InputDecoration(
+                  labelText: 'Advance reminders',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('Event day only')),
+                  DropdownMenuItem(
+                    value: 1,
+                    child: Text('1 day before + event day'),
+                  ),
+                  DropdownMenuItem(
+                    value: 3,
+                    child: Text('Daily from 3 days before'),
+                  ),
+                  DropdownMenuItem(
+                    value: 7,
+                    child: Text('Daily from 7 days before'),
+                  ),
+                  DropdownMenuItem(
+                    value: 10,
+                    child: Text('Daily from 10 days before'),
+                  ),
+                ],
+                onChanged: (value) => setState(() => advanceDays = value ?? 10),
+              ),
+              SwitchListTile(
+                title: const Text('Spoken alert on event day'),
+                subtitle: const Text(
+                  'Read the person and occasion aloud using an English voice. Phone sound and Do Not Disturb settings still apply.',
+                ),
+                value: voiceAlert,
+                onChanged: (value) => setState(() => voiceAlert = value),
               ),
               const SizedBox(height: 20),
               _buildMemorySection(),

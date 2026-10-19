@@ -12,7 +12,32 @@ class ReminderService {
 
   ReminderService._internal();
 
-  static const String _storageKey = 'yaadx_reminders';
+  String _storageKey = 'yaadx_reminders';
+
+  Future<void> useAccount(String? uid, {bool migrateLegacy = false}) async {
+    final nextKey = uid == null ? 'yaadx_signed_out' : 'yaadx_reminders_$uid';
+    if (migrateLegacy && uid != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final legacy = prefs.getString('yaadx_reminders');
+      final legacyOwner = prefs.getString('yaadx_legacy_owner');
+      if (legacy != null && legacyOwner == null) {
+        if (!await prefs.setString('yaadx_legacy_owner', uid)) {
+          throw StateError('Could not assign saved reminders.');
+        }
+      }
+      if (legacy != null &&
+          (legacyOwner == null || legacyOwner == uid) &&
+          !prefs.containsKey(nextKey)) {
+        if (!await prefs.setString(nextKey, legacy)) {
+          throw StateError('Could not migrate saved reminders.');
+        }
+        await prefs.remove('yaadx_reminders');
+      }
+    }
+    _storageKey = nextKey;
+    _database.clear();
+    _isLoaded = false;
+  }
 
   // In-memory cache
   final List<ReminderModel> _database = [];
@@ -74,6 +99,9 @@ class ReminderService {
       'messageSent': reminder.messageSent,
 
       // Settings
+      'repeatYearly': reminder.repeatYearly,
+      'advanceDays': reminder.advanceDays,
+      'voiceAlert': reminder.voiceAlert,
       'notificationEnabled': reminder.notificationEnabled,
       'isCompleted': reminder.isCompleted,
 
@@ -111,6 +139,9 @@ class ReminderService {
       messageSent: json['messageSent'] as bool? ?? false,
 
       // Settings
+      repeatYearly: json['repeatYearly'] as bool? ?? false,
+      advanceDays: (json['advanceDays'] as int? ?? 10).clamp(0, 10),
+      voiceAlert: json['voiceAlert'] as bool? ?? false,
       notificationEnabled: json['notificationEnabled'] as bool? ?? true,
       isCompleted: json['isCompleted'] as bool? ?? false,
 

@@ -1,30 +1,67 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'dart:async';
+import 'fake_auth_service.dart';
+import 'package:yaadx/auth/controllers/auth_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:provider/provider.dart';
 import 'package:yaadx/main.dart';
+import 'package:yaadx/reminder/reminder_controller.dart';
+
+class StartupController extends ReminderController {
+  final pending = Completer<void>();
+  int loads = 0;
+  bool fail = false;
+
+  @override
+  Future<void> loadReminders() async {
+    loads++;
+    await pending.future;
+    if (fail) throw StateError('Storage unavailable');
+  }
+}
+
+Widget app(ReminderController controller) => MultiProvider(
+  providers: [
+    ChangeNotifierProvider.value(value: controller),
+    ChangeNotifierProvider(
+      create: (_) => AuthController(service: FakeAuthService()),
+    ),
+  ],
+  child: const MaterialApp(home: MainScreen()),
+);
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets(
+    'loads reminders before showing Home without opening another tab',
+    (tester) async {
+      final controller = StartupController();
+      await tester.pumpWidget(app(controller));
+      expect(controller.loads, 1);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Quick Actions'), findsNothing);
+      controller.pending.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Quick Actions'), findsOneWidget);
+      expect(controller.loads, 1);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+  );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('startup load failure can be retried', (tester) async {
+    final controller = StartupController()..fail = true;
+    controller.pending.complete();
+    await tester.pumpWidget(app(controller));
     await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Could not load your reminders.'), findsOneWidget);
+    controller.fail = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    await tester.pump();
+    expect(controller.loads, 2);
+    expect(find.text('Quick Actions'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
   });
 }

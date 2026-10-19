@@ -1,7 +1,8 @@
-
 import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/services.dart';
 
-import 'package:cross_file/cross_file.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:share_plus/share_plus.dart';
@@ -19,9 +20,16 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  static const String _channelId = 'yaadx_reminders';
-  static const String _channelName = 'YaadX Reminders';
-  static const String _shareActionId = 'share_memory';
+  static const native = MethodChannel('yaadx/reminders');
+  static void Function(String)? onReminderOpened;
+  static String? pendingReminderId;
+
+  static Future<bool> canScheduleExact() async =>
+      await native.invokeMethod<bool>('canScheduleExact') ?? false;
+  static Future<void> requestExact() =>
+      native.invokeMethod<void>('requestExact');
+  static Future<String?> takeLaunchReminder() async =>
+      await native.invokeMethod<String>('takeLaunchReminder');
 
   /// Initializes local notifications and the device timezone.
   static Future<void> initialize() async {
@@ -32,12 +40,11 @@ class NotificationService {
     final timeZoneInfo = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(timeZoneInfo.identifier));
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const settings = InitializationSettings(
-      android: androidSettings,
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
     );
+
+    const settings = InitializationSettings(android: androidSettings);
 
     await _plugin.initialize(
       settings: settings,
@@ -46,62 +53,107 @@ class NotificationService {
 
     final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await androidPlugin?.requestNotificationsPermission();
 
+    native.setMethodCallHandler((call) async {
+      if (call.method == 'openReminder' && call.arguments is String) {
+        final id = call.arguments as String;
+        await takeLaunchReminder();
+        if (onReminderOpened != null) {
+          onReminderOpened!(id);
+        } else {
+          pendingReminderId = id;
+        }
+      }
+    });
     _initialized = true;
   }
 
+  static Future<bool> alertsEnabled() async =>
+      (await SharedPreferences.getInstance()).getBool('yaadx_alerts_enabled') ??
+      true;
+
+  static Future<bool> permissionGranted() async {
+    await initialize();
+    return await _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
+            ?.areNotificationsEnabled() ??
+        false;
+  }
+
+  static Future<bool> requestPermission() async {
+    await initialize();
+    return await _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
+            ?.requestNotificationsPermission() ??
+        false;
+  }
+
+  static Future<void> setAlertsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setBool('yaadx_alerts_enabled', enabled)) {
+      throw StateError('Could not save notification preference.');
+    }
+    if (!enabled) await cancelAll();
+  }
+
+  static Future<void> cancelAll() async {
+    await native.invokeMethod<void>('cancelAll');
+    await _plugin.cancelAll();
+  }
+
+  static Future<void> openSystemSettings() async {
+    await const MethodChannel(
+      'yaadx/settings',
+    ).invokeMethod<void>('openNotificationSettings');
+  }
+
   /// Schedules a notification for a saved reminder.
-  static Future<void> scheduleReminder(
-    ReminderModel reminder,
-  ) async {
+  static Future<void> scheduleReminder(ReminderModel reminder) async {
     await initialize();
 
-    await cancelReminder(reminder.id);
-
-    if (!reminder.notificationEnabled || reminder.isCompleted) {
+    if (!await alertsEnabled() ||
+        !reminder.notificationEnabled ||
+        reminder.isCompleted) {
+      await cancelReminder(reminder.id);
       return;
     }
 
-    final scheduledDate = _getScheduledDate(reminder);
-
-    // Do not schedule reminders for a past date/time.
-    if (!scheduledDate.isAfter(tz.TZDateTime.now(tz.local))) {
-      return;
+    final event = reminder.eventDateTime;
+    String? voiceUri;
+    if (reminder.voiceAlert) {
+      voiceUri = await native.invokeMethod<String>('prepareVoice', {
+        'text':
+            "Today is ${reminder.name}'s ${reminder.eventType}. Remember to call or send your wishes.",
+      });
+      if (voiceUri == null) {
+        throw StateError('Voice alert could not be prepared.');
+      }
     }
-
-    final androidDetails = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: 'Notifications for saved YaadX events',
-      importance: Importance.max,
-      priority: Priority.high,
-      actions: <AndroidNotificationAction>[
-        AndroidNotificationAction(
-          _shareActionId,
-          'Send to ${reminder.name}',
-          showsUserInterface: true,
-        ),
-      ],
-    );
-
-    final notificationDetails = NotificationDetails(
-      android: androidDetails,
-    );
-
-    await _plugin.zonedSchedule(
-      id: _notificationId(reminder.id),
-      title: '${reminder.eventType}: ${reminder.name}',
-      body: reminder.note.trim().isNotEmpty
-          ? reminder.note.trim()
-          : 'Your ${reminder.eventType.toLowerCase()} reminder is due.',
-      scheduledDate: scheduledDate,
-      notificationDetails: notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: reminder.id,
-    );
+    await native.invokeMethod<void>('schedule', {
+      'record': jsonEncode({
+        'id': reminder.id,
+        'name': reminder.name,
+        'eventType': reminder.eventType,
+        'note': reminder.note,
+        'year': event.year,
+        'month': event.month,
+        'day': event.day,
+        'hour': event.hour,
+        'minute': event.minute,
+        'yearly': reminder.repeatYearly,
+        'advanceDays': reminder.advanceDays,
+        'voiceUri': voiceUri ?? '',
+      }),
+    });
+    await _plugin.cancel(id: _notificationId(reminder.id));
   }
 
   /// Handles notification taps and the "Send to..." action.
@@ -119,13 +171,12 @@ class NotificationService {
   }
 
   /// Shares saved photos with a caption or an event-based default message.
-  static Future<void> shareMemoryForReminder(
-    String reminderId,
-  ) async {
+  static Future<void> shareMemoryForReminder(String reminderId) async {
     final reminderService = ReminderService();
 
-    final ReminderModel? reminder =
-        await reminderService.getReminderById(reminderId);
+    final ReminderModel? reminder = await reminderService.getReminderById(
+      reminderId,
+    );
 
     if (reminder == null) {
       return;
@@ -185,62 +236,13 @@ class NotificationService {
     }
   }
 
-  /// Converts the reminder's saved date and time to local timezone.
-  /// Supports formats such as 14:30, 2:30 PM and 9:05 AM.
-  static tz.TZDateTime _getScheduledDate(
-    ReminderModel reminder,
-  ) {
-    final time = reminder.time.trim();
-
-    final match = RegExp(
-      r'^(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?$',
-    ).firstMatch(time);
-
-    if (match == null) {
-      throw FormatException('Invalid reminder time: $time');
-    }
-
-    var hour = int.parse(match.group(1)!);
-    final minute = int.parse(match.group(2)!);
-    final period = match.group(3)?.toUpperCase();
-
-    if (minute > 59) {
-      throw FormatException('Invalid reminder minute: $time');
-    }
-
-    if (period != null) {
-      if (hour < 1 || hour > 12) {
-        throw FormatException('Invalid reminder hour: $time');
-      }
-
-      if (period == 'PM' && hour != 12) {
-        hour += 12;
-      } else if (period == 'AM' && hour == 12) {
-        hour = 0;
-      }
-    } else if (hour > 23) {
-      throw FormatException('Invalid reminder hour: $time');
-    }
-
-    final localDateTime = DateTime(
-      reminder.date.year,
-      reminder.date.month,
-      reminder.date.day,
-      hour,
-      minute,
-    );
-
-    return tz.TZDateTime.from(localDateTime, tz.local);
-  }
-
   /// Generates a stable notification ID for a reminder.
   static int _notificationId(String reminderId) =>
       reminderId.hashCode & 0x7fffffff;
 
   /// Cancels the scheduled notification for a reminder.
-  static Future<void> cancelReminder(
-    String reminderId,
-  ) async {
+  static Future<void> cancelReminder(String reminderId) async {
+    await native.invokeMethod<void>('cancel', {'id': reminderId});
     await _plugin.cancel(id: _notificationId(reminderId));
   }
 }

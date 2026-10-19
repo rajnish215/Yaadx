@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,8 +22,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   String selectedType = 'All';
   bool searching = false;
 
-  final TextEditingController searchController =
-      TextEditingController();
+  final TextEditingController searchController = TextEditingController();
 
   final List<String> types = [
     'All',
@@ -51,15 +49,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   bool sameDay(DateTime a, DateTime b) =>
-      a.year == b.year &&
-      a.month == b.month &&
-      a.day == b.day;
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   String formatDate(DateTime date) {
     const months = [
-      'January', 'February', 'March', 'April',
-      'May', 'June', 'July', 'August',
-      'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
 
     return '${date.day} ${months[date.month - 1]} ${date.year}';
@@ -67,9 +72,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   String monthName(int month) {
     const months = [
-      'January', 'February', 'March', 'April',
-      'May', 'June', 'July', 'August',
-      'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
 
     return months[month - 1];
@@ -113,11 +127,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final query = searchController.text.trim().toLowerCase();
 
     return reminders.where((event) {
-      if (!sameDay(event.date, date)) return false;
+      if (!event.occursOn(date)) return false;
 
       if (selectedType != 'All' &&
-          event.eventType.toLowerCase() !=
-              selectedType.toLowerCase()) {
+          event.eventType.toLowerCase() != selectedType.toLowerCase()) {
         return false;
       }
 
@@ -129,20 +142,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
 
       return true;
-    }).toList()
-      ..sort((a, b) => a.time.compareTo(b.time));
+    }).toList()..sort(
+      (a, b) => a
+          .occurrenceInYear(date.year)
+          .compareTo(b.occurrenceInYear(date.year)),
+    );
   }
 
   int eventCount(List<ReminderModel> reminders, DateTime date) {
-    return reminders.where((event) => sameDay(event.date, date)).length;
+    return reminders.where((event) => event.occursOn(date)).length;
   }
 
   void changeMonth(int amount) {
     setState(() {
-      visibleMonth = DateTime(
-        visibleMonth.year,
-        visibleMonth.month + amount,
-      );
+      visibleMonth = DateTime(visibleMonth.year, visibleMonth.month + amount);
     });
   }
 
@@ -168,10 +181,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -183,9 +193,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Event deleted')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Event deleted')));
   }
 
   void showEventDetails(ReminderModel event) {
@@ -197,9 +207,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(26),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
         ),
         child: SafeArea(
           child: Column(
@@ -219,11 +227,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const SizedBox(height: 22),
               Row(
                 children: [
-                  Icon(
-                    eventIcon(event.eventType),
-                    color: accent,
-                    size: 30,
-                  ),
+                  Icon(eventIcon(event.eventType), color: accent, size: 30),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -241,32 +245,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
               detailRow(
                 Icons.calendar_today_outlined,
                 'Date',
-                formatDate(event.date),
+                formatDate(
+                  event.repeatYearly
+                      ? event.occurrenceInYear(selectedDate.year)
+                      : event.date,
+                ),
               ),
-              detailRow(
-                Icons.access_time,
-                'Time',
-                event.time,
-              ),
-              detailRow(
-                Icons.favorite_border,
-                'Relation',
-                event.relation,
-              ),
+              detailRow(Icons.access_time, 'Time', event.time),
+              detailRow(Icons.favorite_border, 'Relation', event.relation),
               if (event.phoneNumber != null &&
                   event.phoneNumber!.trim().isNotEmpty)
-                detailRow(
-                  Icons.phone_outlined,
-                  'Phone',
-                  event.phoneNumber!,
-                ),
+                detailRow(Icons.phone_outlined, 'Phone', event.phoneNumber!),
               if (event.note.trim().isNotEmpty)
-                detailRow(
-                  Icons.notes_outlined,
-                  'Note',
-                  event.note,
-                ),
+                detailRow(Icons.notes_outlined, 'Note', event.note),
               const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => AddReminderScreen(reminder: event),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit event'),
+              ),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -299,10 +304,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const SizedBox(width: 12),
           SizedBox(
             width: 75,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.black54),
-            ),
+            child: Text(label, style: const TextStyle(color: Colors.black54)),
           ),
           Expanded(
             child: Text(
@@ -316,22 +318,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget buildCalendar(List<ReminderModel> reminders) {
-    final firstDay = DateTime(
-      visibleMonth.year,
-      visibleMonth.month,
-      1,
-    );
+    final firstDay = DateTime(visibleMonth.year, visibleMonth.month, 1);
 
     final leadingDays = firstDay.weekday - 1;
-    final daysInMonth =
-        DateTime(visibleMonth.year, visibleMonth.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      visibleMonth.year,
+      visibleMonth.month + 1,
+      0,
+    ).day;
 
     final totalCells = ((leadingDays + daysInMonth + 6) ~/ 7) * 7;
     final today = DateTime.now();
 
-    const weekdays = [
-      'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
-    ];
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return Column(
       children: [
@@ -371,11 +370,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               return const SizedBox.shrink();
             }
 
-            final date = DateTime(
-              visibleMonth.year,
-              visibleMonth.month,
-              day,
-            );
+            final date = DateTime(visibleMonth.year, visibleMonth.month, day);
 
             final isSelected = sameDay(date, selectedDate);
             final isToday = sameDay(date, today);
@@ -500,10 +495,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 color: accent.withValues(alpha: 0.09),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(
-                eventIcon(event.eventType),
-                color: accent,
-              ),
+              child: Icon(eventIcon(event.eventType), color: accent),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -522,10 +514,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   const SizedBox(height: 4),
                   Text(
                     '${event.eventType} • ${event.relation}',
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                   if (event.note.trim().isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -560,10 +549,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget buildEmptyState() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 28,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -571,27 +557,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.event_available_outlined,
-            color: accent,
-            size: 34,
-          ),
+          const Icon(Icons.event_available_outlined, color: accent, size: 34),
           const SizedBox(height: 12),
           const Text(
             'No saved events on this date',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           const Text(
             'Tap Add Event to save something important.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.black54,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.black54, fontSize: 13),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
@@ -601,10 +577,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             style: OutlinedButton.styleFrom(
               foregroundColor: accent,
               side: const BorderSide(color: accent),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
           ),
         ],
@@ -669,10 +642,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       IconButton(
                         tooltip: 'Today',
                         onPressed: goToToday,
-                        icon: const Icon(
-                          Icons.today_outlined,
-                          color: accent,
-                        ),
+                        icon: const Icon(Icons.today_outlined, color: accent),
                       ),
                     ],
                   ),
@@ -699,9 +669,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: const Color(0xffF2E5E2),
-                      ),
+                      border: Border.all(color: const Color(0xffF2E5E2)),
                     ),
                     child: Column(
                       children: [

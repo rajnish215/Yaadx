@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -26,18 +25,13 @@ class UpcomingEvents extends StatelessWidget {
               children: [
                 const Text(
                   'Upcoming Events',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 TextButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const ReminderScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const ReminderScreen()),
                     );
                   },
                   style: TextButton.styleFrom(
@@ -77,7 +71,8 @@ class UpcomingEvents extends StatelessWidget {
   }) {
     final categoryColor = _categoryColor(event.eventType);
     final categoryBg = categoryColor.withValues(alpha: 0.12);
-    final daysLeft = _daysUntil(event.date);
+    final occurrence = event.nextOccurrence(DateTime.now());
+    final daysLeft = _daysUntil(occurrence);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,9 +88,7 @@ class UpcomingEvents extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive ? accent : Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: isActive
-                      ? null
-                      : Border.all(color: softBorder),
+                  border: isActive ? null : Border.all(color: softBorder),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
@@ -110,7 +103,7 @@ class UpcomingEvents extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      event.date.day.toString().padLeft(2, '0'),
+                      occurrence.day.toString().padLeft(2, '0'),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -120,7 +113,7 @@ class UpcomingEvents extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      _monthName(event.date.month),
+                      _monthName(occurrence.month),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -131,11 +124,7 @@ class UpcomingEvents extends StatelessWidget {
                 ),
               ),
               if (showLine)
-                Container(
-                  height: 24,
-                  width: 1.5,
-                  color: softBorder,
-                ),
+                Container(height: 24, width: 1.5, color: softBorder),
             ],
           ),
         ),
@@ -145,10 +134,7 @@ class UpcomingEvents extends StatelessWidget {
         Expanded(
           child: Container(
             margin: const EdgeInsets.only(bottom: 22),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 14,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
@@ -232,10 +218,7 @@ class UpcomingEvents extends StatelessWidget {
   Widget _buildEmptyState() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 28,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -243,27 +226,17 @@ class UpcomingEvents extends StatelessWidget {
       ),
       child: const Column(
         children: [
-          Icon(
-            Icons.event_available_outlined,
-            size: 38,
-            color: accent,
-          ),
+          Icon(Icons.event_available_outlined, size: 38, color: accent),
           SizedBox(height: 10),
           Text(
             'No Upcoming Events',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: 5),
           Text(
             'Add a reminder to see your upcoming events here.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
         ],
       ),
@@ -280,8 +253,18 @@ class UpcomingEvents extends StatelessWidget {
 
   String _monthName(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
 
     return months[month - 1];

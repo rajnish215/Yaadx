@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../reminder/reminder_controller.dart';
 import '../../reminder/reminder_model.dart';
+import '../../reminder/celebrate_screen.dart';
 
 class HeroCard extends StatefulWidget {
   const HeroCard({super.key});
@@ -41,7 +41,8 @@ class _HeroCardState extends State<HeroCard> {
   Widget build(BuildContext context) {
     return Consumer<ReminderController>(
       builder: (context, controller, child) {
-        final events = controller.upcomingReminders;
+        final today = controller.todayReminders;
+        final events = today.isNotEmpty ? today : controller.upcomingReminders;
 
         if (events.isEmpty) {
           return _buildEmptyCard();
@@ -49,12 +50,14 @@ class _HeroCardState extends State<HeroCard> {
 
         // Controller already sorts events by nearest date/time.
         final ReminderModel event = events.first;
-        final DateTime eventDateTime = _getEventDateTime(event);
-        final Duration remaining = eventDateTime.difference(_now);
-
-        if (remaining.isNegative || remaining == Duration.zero) {
-          return _buildEmptyCard();
-        }
+        final DateTime eventDateTime =
+            event.repeatYearly && event.occursOn(_now)
+            ? event.occurrenceInYear(_now.year)
+            : event.nextOccurrence(_now);
+        final Duration difference = eventDateTime.difference(_now);
+        final Duration remaining = difference.isNegative
+            ? Duration.zero
+            : difference;
 
         final int days = remaining.inDays;
         final int hours = remaining.inHours % 24;
@@ -67,10 +70,7 @@ class _HeroCardState extends State<HeroCard> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(30),
             gradient: const LinearGradient(
-              colors: [
-                Color(0xffC8453A),
-                Color(0xff8B231C),
-              ],
+              colors: [Color(0xffC8453A), Color(0xff8B231C)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -100,11 +100,7 @@ class _HeroCardState extends State<HeroCard> {
                     ),
                     child: const Row(
                       children: [
-                        Icon(
-                          Icons.auto_awesome,
-                          color: Colors.white,
-                          size: 14,
-                        ),
+                        Icon(Icons.auto_awesome, color: Colors.white, size: 14),
                         SizedBox(width: 5),
                         Text(
                           'NEXT EVENT',
@@ -166,7 +162,7 @@ class _HeroCardState extends State<HeroCard> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                _formatDate(event.date),
+                                _formatDate(eventDateTime),
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 14,
@@ -213,12 +209,16 @@ class _HeroCardState extends State<HeroCard> {
 
               const SizedBox(height: 20),
 
-              // Keep the existing button; functionality will be added later.
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => CelebrateScreen(reminderId: event.id),
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xffB35B52),
                     elevation: 0,
@@ -263,19 +263,12 @@ class _HeroCardState extends State<HeroCard> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: const LinearGradient(
-          colors: [
-            Color(0xffC8453A),
-            Color(0xff8B231C),
-          ],
+          colors: [Color(0xffC8453A), Color(0xff8B231C)],
         ),
       ),
       child: const Column(
         children: [
-          Icon(
-            Icons.event_available,
-            color: Colors.white,
-            size: 42,
-          ),
+          Icon(Icons.event_available, color: Colors.white, size: 42),
           SizedBox(height: 12),
           Text(
             'No Upcoming Events',
@@ -289,57 +282,29 @@ class _HeroCardState extends State<HeroCard> {
           Text(
             'Add an event to see your next countdown here.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
         ],
       ),
     );
   }
 
-  DateTime _getEventDateTime(ReminderModel reminder) {
-    final match = RegExp(
-      r'^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$',
-    ).firstMatch(reminder.time.trim());
-
-    if (match == null) {
-      return DateTime(
-        reminder.date.year,
-        reminder.date.month,
-        reminder.date.day,
-      );
-    }
-
-    var hour = int.parse(match.group(1)!);
-    final minute = int.parse(match.group(2)!);
-    final period = match.group(3)!.toUpperCase();
-
-    if (period == 'PM' && hour != 12) {
-      hour += 12;
-    } else if (period == 'AM' && hour == 12) {
-      hour = 0;
-    }
-
-    return DateTime(
-      reminder.date.year,
-      reminder.date.month,
-      reminder.date.day,
-      hour,
-      minute,
-    );
-  }
-
   String _formatDate(DateTime date) {
-    const weekdays = [
-      'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
-    ];
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     const months = [
-      'January', 'February', 'March', 'April',
-      'May', 'June', 'July', 'August',
-      'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
 
     return '${weekdays[date.weekday - 1]}, '
@@ -366,11 +331,7 @@ class CountdownCircle extends StatelessWidget {
   final String value;
   final String label;
 
-  const CountdownCircle({
-    super.key,
-    required this.value,
-    required this.label,
-  });
+  const CountdownCircle({super.key, required this.value, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -381,10 +342,7 @@ class CountdownCircle extends StatelessWidget {
           width: 52,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white24,
-              width: 2.5,
-            ),
+            border: Border.all(color: Colors.white24, width: 2.5),
           ),
           child: Center(
             child: Text(
@@ -400,10 +358,7 @@ class CountdownCircle extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
     );

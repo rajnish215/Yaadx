@@ -1,7 +1,8 @@
-
 import 'package:flutter/material.dart';
 
 import '../reminder_model.dart';
+import '../add_reminder_screen.dart';
+import '../celebrate_screen.dart';
 import '../notification_service.dart';
 
 class ReminderTile extends StatelessWidget {
@@ -36,10 +37,13 @@ class ReminderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
 
+    final occurrence = reminder.repeatYearly && reminder.occursOn(now)
+        ? reminder.occurrenceInYear(now.year)
+        : reminder.nextOccurrence(now);
     final eventDay = DateTime(
-      reminder.date.year,
-      reminder.date.month,
-      reminder.date.day,
+      occurrence.year,
+      occurrence.month,
+      occurrence.day,
     );
 
     final today = DateTime(now.year, now.month, now.day);
@@ -60,7 +64,12 @@ class ReminderTile extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => CelebrateScreen(reminderId: reminder.id),
+          ),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -103,7 +112,7 @@ class ReminderTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          '${reminder.date.day}/${reminder.date.month}/${reminder.date.year}',
+                          '${occurrence.day}/${occurrence.month}/${occurrence.year}',
                           style: const TextStyle(color: Colors.grey),
                         ),
                         const SizedBox(height: 4),
@@ -136,8 +145,8 @@ class ReminderTile extends StatelessWidget {
                           daysLeft < 0
                               ? 'Passed'
                               : daysLeft == 0
-                                  ? 'Today'
-                                  : '$daysLeft Days',
+                              ? 'Today'
+                              : '$daysLeft Days',
                           style: const TextStyle(
                             color: Color(0xffFF6B81),
                             fontWeight: FontWeight.w600,
@@ -146,24 +155,18 @@ class ReminderTile extends StatelessWidget {
                       ),
                       PopupMenuButton<String>(
                         itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
+                          PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          PopupMenuItem(value: 'delete', child: Text('Delete')),
                         ],
                         onSelected: (value) {
                           if (value == 'delete') {
                             onDelete?.call();
                           } else if (value == 'edit') {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Edit reminder is not implemented yet.',
-                                ),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    AddReminderScreen(reminder: reminder),
                               ),
                             );
                           }
@@ -178,10 +181,7 @@ class ReminderTile extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () => _shareMemory(context),
-                  icon: const Icon(
-                    Icons.share,
-                    color: Colors.white,
-                  ),
+                  icon: const Icon(Icons.share, color: Colors.white),
                   label: const Text(
                     'Share Memory',
                     style: TextStyle(

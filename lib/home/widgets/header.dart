@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../auth/controllers/auth_controller.dart';
 import 'package:intl/intl.dart';
 import '../../search/search_screen.dart';
 import '../../notification/notification_screen.dart';
@@ -22,19 +24,16 @@ class Header extends StatelessWidget {
     }
   }
 
-  final String userName = "Bhavesh";
-
   @override
   Widget build(BuildContext context) {
+    final name = context.watch<AuthController>().userName.trim();
+    final userName = name.isEmpty ? 'there' : name;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Date Chip
         Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: const Color(0xffFFE7E5),
             borderRadius: BorderRadius.circular(30),
@@ -42,10 +41,7 @@ class Header extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircleAvatar(
-                radius: 4,
-                backgroundColor: Color(0xffFF6B6B),
-              ),
+              const CircleAvatar(radius: 4, backgroundColor: Color(0xffFF6B6B)),
               const SizedBox(width: 8),
               Text(
                 getCurrentDate(),
@@ -96,17 +92,11 @@ class Header extends StatelessWidget {
 
             Row(
               children: [
-                _circleButton(
-                context,
-                Icons.search,
-                ),
+                _circleButton(context, Icons.search),
                 const SizedBox(width: 12),
                 Stack(
                   children: [
-                    _circleButton(
-                      context,
-                      Icons.notifications_none,
-                    ),
+                    _circleButton(context, Icons.notifications_none),
                     Positioned(
                       right: 10,
                       top: 10,
@@ -129,51 +119,40 @@ class Header extends StatelessWidget {
     );
   }
 
-static Widget _circleButton(
-  BuildContext context,
-  IconData icon,
-) {
-  return GestureDetector(
+  static Widget _circleButton(BuildContext context, IconData icon) {
+    return GestureDetector(
+      onTap: () {
+        if (icon == Icons.search) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SearchScreen()),
+          );
+        }
 
-    onTap: () {
-  if (icon == Icons.search) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const SearchScreen(),
+        if (icon == Icons.notifications_none) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NotificationScreen()),
+          );
+        }
+      },
+
+      child: Container(
+        height: 56,
+        width: 56,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x11000000),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: const Color(0xffF25F5C)),
       ),
     );
   }
-
-  if (icon == Icons.notifications_none) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const NotificationScreen(),
-      ),
-    );
-  }
-},
-
-    child: Container(
-      height: 56,
-      width: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x11000000),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Icon(
-        icon,
-        color: const Color(0xffF25F5C),
-      ),
-    ),
-  );
-}
 }

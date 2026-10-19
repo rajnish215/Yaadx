@@ -1,68 +1,75 @@
 import 'package:flutter/material.dart';
+import '../../reminder/add_reminder_screen.dart';
 
 class BottomNavbar extends StatelessWidget {
   final int currentIndex;
-  final Function(int) onTap;
-
+  final ValueChanged<int> onTap;
   const BottomNavbar({
     super.key,
     required this.currentIndex,
     required this.onTap,
   });
-
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          height: 85,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            boxShadow: [BoxShadow(color: Color(0x12000000), blurRadius: 20, offset: Offset(0, -5))],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(icon: Icons.home_rounded, title: "Home", index: 0),
-              _buildNavItem(icon: Icons.calendar_month, title: "Calendar", index: 1),
-              const SizedBox(width: 60),
-              _buildNavItem(icon: Icons.notifications_none, title: "Reminders", index: 2),
-              _buildNavItem(icon: Icons.person_outline, title: "Profile", index: 3),
-            ],
-          ),
-        ),
-        Positioned(
-          top: -28, left: 0, right: 0,
-          child: Center(
-            child: GestureDetector(
-              onTap: () => print("Add Clicked"),
-              child: Container(
-                height: 60, width: 60,
-                decoration: BoxDecoration(color: const Color(0xffC8453A), shape: BoxShape.circle),
-                child: const Icon(Icons.add, color: Colors.white, size: 32),
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: SizedBox(
+      height: 100,
+      child: Stack(
+        children: [
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 76,
+            child: Material(
+              color: Colors.white,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _item(Icons.home_rounded, 'Home', 0),
+                  _item(Icons.calendar_month, 'Calendar', 1),
+                  const SizedBox(width: 60),
+                  _item(Icons.notifications_none, 'Reminders', 2),
+                  _item(Icons.person_outline, 'Profile', 3),
+                ],
               ),
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNavItem({required IconData icon, required String title, required int index}) {
-    bool isActive = currentIndex == index;
-    return GestureDetector(
-      onTap: () => onTap(index),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          children: [
-            Icon(icon, color: isActive ? const Color(0xffC8453A) : Colors.grey),
-            Text(title, style: TextStyle(fontSize: 12, color: isActive ? const Color(0xffC8453A) : Colors.grey)),
-          ],
-        ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: FloatingActionButton(
+              heroTag: 'mainAddReminder',
+              tooltip: 'Add reminder',
+              backgroundColor: const Color(0xffC8453A),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const AddReminderScreen(),
+                ),
+              ),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+  Widget _item(IconData icon, String label, int index) => InkWell(
+    onTap: () => onTap(index),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: currentIndex == index
+                ? const Color(0xffC8453A)
+                : Colors.grey,
+          ),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    ),
+  );
 }

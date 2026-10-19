@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../reminder/reminder_service.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
   // ===========================
   // Current User
@@ -13,8 +14,7 @@ class AuthService {
   // Auth State Changes
   // ===========================
 
-  Stream<User?> get authStateChanges =>
-      _auth.authStateChanges();
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // ===========================
   // SIGN UP
@@ -25,18 +25,16 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final credential =
-        await _auth.createUserWithEmailAndPassword(
+    final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
 
-    await credential.user!.updateDisplayName(
-      name.trim(),
-    );
+    await credential.user!.updateDisplayName(name.trim());
 
     await credential.user!.reload();
 
+    await ReminderService().useAccount(credential.user!.uid);
     return credential;
   }
 
@@ -48,10 +46,12 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    final credential = await _auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+    await ReminderService().useAccount(credential.user!.uid);
+    return credential;
   }
 
   // ===========================
@@ -60,18 +60,33 @@ class AuthService {
 
   Future<void> logout() async {
     await _auth.signOut();
+    await ReminderService().useAccount(null);
+  }
+
+  Future<void> updateName(String name) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Please sign in again.');
+    await user.updateDisplayName(name.trim());
+    await user.reload();
+  }
+
+  Future<void> changeEmail(String email, String password) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw StateError('Please sign in again.');
+    }
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: user.email!, password: password),
+    );
+    await user.verifyBeforeUpdateEmail(email.trim());
   }
 
   // ===========================
   // RESET PASSWORD
   // ===========================
 
-  Future<void> resetPassword(
-    String email,
-  ) async {
-    await _auth.sendPasswordResetEmail(
-      email: email.trim(),
-    );
+  Future<void> resetPassword(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
   // ===========================
@@ -79,10 +94,8 @@ class AuthService {
   // ===========================
 
   Future<void> sendEmailVerification() async {
-    if (_auth.currentUser != null &&
-        !_auth.currentUser!.emailVerified) {
-      await _auth.currentUser!
-          .sendEmailVerification();
+    if (_auth.currentUser != null && !_auth.currentUser!.emailVerified) {
+      await _auth.currentUser!.sendEmailVerification();
     }
   }
 
@@ -99,8 +112,7 @@ class AuthService {
   // ===========================
 
   bool get isEmailVerified {
-    return _auth.currentUser?.emailVerified ??
-        false;
+    return _auth.currentUser?.emailVerified ?? false;
   }
 
   // ===========================
