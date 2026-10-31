@@ -49,7 +49,7 @@ class ReminderDeviceTest {
         var uri: String? = null
         var error: String? = null
         instrumentation.runOnMainSync {
-            VoiceRenderer.prepare(context, "This is a YaadX voice alert test.", object : MethodChannel.Result {
+            VoiceRenderer.prepare(context, "Tomorrow is Ankit’s birthday.", object : MethodChannel.Result {
                 override fun success(value: Any?) { uri = value as? String; latch.countDown() }
                 override fun error(code: String, message: String?, details: Any?) { error = message; latch.countDown() }
                 override fun notImplemented() { error = "Not implemented"; latch.countDown() }
@@ -84,13 +84,20 @@ class ReminderDeviceTest {
             instrumentation.runOnMainSync { player?.release() }
         }
         try {
-            ReminderAlarms.save(context, record(id).put("voiceUri", uri))
-            ReminderAlarms.deliver(context, id, 0)
+            ReminderAlarms.save(context, record(id).put("advanceDays", 0).put("tomorrowVoiceUri", uri))
+            assertNotNull("Voice must schedule the day-before alarm", pending(id, 1))
+            ReminderAlarms.deliver(context, id, 1)
             val manager = context.getSystemService(NotificationManager::class.java)
             val channel = manager.getNotificationChannel("yaadx_voice_${uri!!.hashCode()}")
             assertEquals(Uri.parse(uri), channel.sound)
+            ReminderAlarms.deliver(context, id, 0)
+            ReminderAlarms.deliver(context, id, 2)
             if (manager.areNotificationsEnabled()) {
-                assertTrue(manager.activeNotifications.any { it.id == ("$id:0".hashCode() and 0x7fffffff) })
+                val posted = manager.activeNotifications.associateBy { it.id }
+                assertEquals(channel.id, posted[("$id:1".hashCode() and 0x7fffffff)]!!.notification.channelId)
+                for (offset in listOf(0, 2)) {
+                    assertEquals("yaadx_event_alerts_v2", posted[("$id:$offset".hashCode() and 0x7fffffff)]!!.notification.channelId)
+                }
             }
         } finally { ReminderAlarms.cancel(context, id) }
     }

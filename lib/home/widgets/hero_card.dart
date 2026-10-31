@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../reminder/reminder_controller.dart';
-import '../../reminder/reminder_model.dart';
 import '../../reminder/celebrate_screen.dart';
 
 class HeroCard extends StatefulWidget {
@@ -41,15 +40,8 @@ class _HeroCardState extends State<HeroCard> {
   Widget build(BuildContext context) {
     return Consumer<ReminderController>(
       builder: (context, controller, child) {
-        final today = controller.todayReminders;
-        final events = today.isNotEmpty ? today : controller.upcomingReminders;
-
-        if (events.isEmpty) {
-          return _buildEmptyCard();
-        }
-
-        // Controller already sorts events by nearest date/time.
-        final ReminderModel event = events.first;
+        final event = controller.nextEventForHome(_now);
+        if (event == null) return _buildEmptyCard();
         final DateTime eventDateTime =
             event.repeatYearly && event.occursOn(_now)
             ? event.occurrenceInYear(_now.year)

@@ -61,7 +61,8 @@ object ReminderAlarms {
         }
     }
     private fun scheduleRecord(c: Context, record: JSONObject) {
-        val advance = record.optInt("advanceDays", 10).coerceIn(0, 10)
+        val advance = maxOf(record.optInt("advanceDays", 10).coerceIn(0, 10),
+            if (record.optString("tomorrowVoiceUri").isNotEmpty()) 1 else 0)
         for (offset in 0..advance) schedule(c, record, offset)
     }
     private fun schedule(c: Context, r: JSONObject, offset: Int) {
@@ -92,7 +93,7 @@ object ReminderAlarms {
             r.optString("note").isNotBlank() -> r.getString("note")
             else -> "Remember to call or wish $name today."
         }
-        val voice = if (offset == 0) r.optString("voiceUri") else ""
+        val voice = if (offset == 1) r.optString("tomorrowVoiceUri") else ""
         val channelId = if (voice.isEmpty()) "yaadx_event_alerts_v2" else "yaadx_voice_${voice.hashCode()}"
         if (Build.VERSION.SDK_INT >= 26) {
             val channel = NotificationChannel(channelId, if (voice.isEmpty()) "Event reminders" else "Spoken event reminder", NotificationManager.IMPORTANCE_HIGH)

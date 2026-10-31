@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,19 +13,29 @@ import 'package:yaadx/reminder/reminder_model.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final calls = <String>[];
+  final nativeCalls = <MethodCall>[];
   bool allowed = true;
+  bool voiceFailure = false;
   setUp(() {
     AndroidFlutterLocalNotificationsPlugin.registerWith();
     SharedPreferences.setMockInitialValues({});
     allowed = true;
+    voiceFailure = false;
     calls.clear();
+    nativeCalls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('yaadx/reminders'), (
           call,
         ) async {
           calls.add(call.method);
+          nativeCalls.add(call);
           if (call.method == 'canScheduleExact') return true;
-          if (call.method == 'prepareVoice') return 'content://voice/test.wav';
+          if (call.method == 'prepareVoice') {
+            if (voiceFailure) {
+              throw PlatformException(code: 'voice_unavailable');
+            }
+            return 'content://voice/test.wav';
+          }
           return null;
         });
     final messenger =
@@ -101,4 +112,66 @@ void main() {
     await NotificationService.scheduleReminder(reminder);
     expect(calls, contains('schedule'));
   });
+  test('voice announces tomorrow and is removed when disabled', () async {
+    final reminder = ReminderModel(
+      id: 'tomorrow',
+      name: 'Ankit',
+      relation: 'Friend',
+      eventType: 'Birthday',
+      date: DateTime.now().add(const Duration(days: 2)),
+      time: '18:30',
+      note: '',
+      createdAt: DateTime.now(),
+      voiceAlert: true,
+      advanceDays: 0,
+    );
+    await NotificationService.scheduleReminder(reminder);
+    final speech = nativeCalls.singleWhere(
+      (call) => call.method == 'prepareVoice',
+    );
+    expect(speech.arguments['text'], "Tomorrow is Ankit's birthday.");
+    final schedule = nativeCalls.lastWhere((call) => call.method == 'schedule');
+    final record = jsonDecode(schedule.arguments['record'] as String);
+    expect(record['tomorrowVoiceUri'], 'content://voice/test.wav');
+    expect(record.containsKey('voiceUri'), false);
+    nativeCalls.clear();
+    await NotificationService.scheduleReminder(
+      reminder.copyWith(voiceAlert: false),
+    );
+    expect(nativeCalls.any((call) => call.method == 'prepareVoice'), false);
+    final disabled = nativeCalls.lastWhere((call) => call.method == 'schedule');
+    expect(
+      jsonDecode(disabled.arguments['record'] as String)['tomorrowVoiceUri'],
+      '',
+    );
+  });
+  test(
+    'voice failure still schedules a normal tomorrow and event-day alert',
+    () async {
+      voiceFailure = true;
+      final event = ReminderModel(
+        id: 'voice-fallback',
+        name: 'Ankit',
+        relation: 'Friend',
+        eventType: 'Birthday',
+        date: DateTime(2030, 11, 1),
+        time: '18:30',
+        note: '',
+        createdAt: DateTime(2026),
+        voiceAlert: true,
+        advanceDays: 0,
+      );
+      await expectLater(
+        NotificationService.scheduleReminder(event),
+        throwsStateError,
+      );
+      final schedule = nativeCalls.singleWhere(
+        (call) => call.method == 'schedule',
+      );
+      final record = jsonDecode(schedule.arguments['record'] as String) as Map;
+      expect(record['tomorrowVoiceUri'], '');
+      expect(record['advanceDays'], 1);
+      expect(record['hour'], 18);
+    },
+  );
 }

@@ -1,3 +1,4 @@
+import 'reminder_validation.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
@@ -143,8 +144,24 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
 
       if (!mounted || photos.isEmpty) return;
 
+      final additions = photos
+          .where(
+            (photo) => !_selectedPhotos.any((item) => item.path == photo.path),
+          )
+          .toList();
+      if (_selectedPhotos.length + additions.length >
+          ReminderValidation.maxPhotos) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Choose up to 10 photos per event. Remove a photo before adding more.',
+            ),
+          ),
+        );
+        return;
+      }
       setState(() {
-        for (final photo in photos) {
+        for (final photo in additions) {
           if (!_selectedPhotos.any((item) => item.path == photo.path)) {
             _selectedPhotos.add(photo);
           }
@@ -214,6 +231,12 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   Future<void> saveReminder() async {
     if (_isSaving || !_formKey.currentState!.validate()) return;
 
+    if (_selectedPhotos.length > ReminderValidation.maxPhotos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose up to 10 photos per event.')),
+      );
+      return;
+    }
     final chosen = DateTime(
       selectedDate.year,
       selectedDate.month,
@@ -293,7 +316,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e is PlatformException
+            e is FormatException
+                ? e.message
+                : e is PlatformException
                 ? e.message ?? 'Could not save alert.'
                 : 'Could not save reminder. Please try again.',
           ),
@@ -370,7 +395,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _selectedPhotos.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final photo = _selectedPhotos[index];
 
@@ -384,7 +409,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                           width: 105,
                           height: 105,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorBuilder: (_, _, _) => Container(
                             width: 105,
                             height: 105,
                             color: Colors.black12,
@@ -419,8 +444,14 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
             ),
           ],
           const SizedBox(height: 16),
-          TextField(
+          TextFormField(
             controller: captionController,
+            maxLength: ReminderValidation.maxText,
+            validator: (v) => ReminderValidation.textError(
+              v ?? '',
+              ReminderValidation.maxText,
+              'Caption',
+            ),
             textCapitalization: TextCapitalization.sentences,
             maxLines: 3,
             decoration: inputDecoration(
@@ -460,6 +491,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
             children: [
               TextFormField(
                 controller: nameController,
+                maxLength: ReminderValidation.maxName,
                 textCapitalization: TextCapitalization.words,
                 decoration: inputDecoration(
                   hint: 'Person Name',
@@ -469,7 +501,11 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter person name';
                   }
-                  return null;
+                  return ReminderValidation.textError(
+                    value,
+                    ReminderValidation.maxName,
+                    'Name',
+                  );
                 },
               ),
               const SizedBox(height: 20),
@@ -572,6 +608,12 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: noteController,
+                maxLength: ReminderValidation.maxText,
+                validator: (v) => ReminderValidation.textError(
+                  v ?? '',
+                  ReminderValidation.maxText,
+                  'Note',
+                ),
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: inputDecoration(
@@ -615,9 +657,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                 onChanged: (value) => setState(() => advanceDays = value ?? 10),
               ),
               SwitchListTile(
-                title: const Text('Spoken alert on event day'),
+                title: const Text('Spoken alert one day before'),
                 subtitle: const Text(
-                  'Read the person and occasion aloud using an English voice. Phone sound and Do Not Disturb settings still apply.',
+                  'Adds a spoken reminder one day before, at the saved time: “Tomorrow is Ankit’s birthday.” Event day has a normal notification only. Phone sound and Do Not Disturb settings still apply.',
                 ),
                 value: voiceAlert,
                 onChanged: (value) => setState(() => voiceAlert = value),

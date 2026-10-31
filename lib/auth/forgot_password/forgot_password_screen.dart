@@ -177,7 +177,7 @@ class _ForgotPasswordScreenState
                       emailController.text.trim(),
                     );
 
-                    if (!mounted) return;
+                    if (!mounted || !context.mounted) return;
 
                     if (result == null) {
 

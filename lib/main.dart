@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'reminder/reminder_service.dart';
+import 'backend/cloud_api.dart';
+import 'backend/sync_screen.dart';
 import 'reminder/celebrate_screen.dart';
 
 import 'firebase_options.dart';
@@ -23,13 +25,26 @@ Future<void> main() async {
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  const apiUrl = String.fromEnvironment('YAADX_API_URL');
+  if (apiUrl.isNotEmpty) {
+    ReminderService().cloud = CloudApi(
+      baseUrl: apiUrl,
+      currentUid: () => FirebaseAuth.instance.currentUser?.uid,
+      token: (force) async =>
+          FirebaseAuth.instance.currentUser?.getIdToken(force),
+    );
+  }
   await ReminderService().useAccount(
     FirebaseAuth.instance.currentUser?.uid,
     migrateLegacy: true,
   );
 
   // Initialize local notifications
-  await NotificationService.initialize();
+  try {
+    await NotificationService.initialize();
+  } catch (_) {
+    // Saved events remain available; the controller reports alert failures.
+  }
 
   // Launch app
   runApp(
@@ -67,13 +82,14 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   late Future<void> _initialLoad;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialLoad = context.read<ReminderController>().loadReminders();
     NotificationService.onReminderOpened = _openReminder;
     _initialLoad.then((_) async {
@@ -105,8 +121,16 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     NotificationService.onReminderOpened = null;
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<ReminderController>().syncCloud();
+    }
   }
 
   void _retryLoad() {
@@ -146,7 +170,31 @@ class _MainScreenState extends State<MainScreen> {
               ),
             );
           }
-          return _pages[_currentIndex];
+          return Column(
+            children: [
+              const SafeArea(bottom: false, child: SyncBanner()),
+              Consumer<ReminderController>(
+                builder: (context, controller, _) {
+                  final warning = controller.alertWarning;
+                  if (warning == null) return const SizedBox.shrink();
+                  return MaterialBanner(
+                    content: Text(warning),
+                    actions: [
+                      TextButton(
+                        onPressed: () async {
+                          try {
+                            await controller.loadReminders();
+                          } catch (_) {}
+                        },
+                        child: const Text('Retry alerts'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              Expanded(child: _pages[_currentIndex]),
+            ],
+          );
         },
       ),
       bottomNavigationBar: BottomNavbar(

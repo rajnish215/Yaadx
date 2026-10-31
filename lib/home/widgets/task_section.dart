@@ -346,6 +346,7 @@ class _VoiceNoteRecorderState extends State<_VoiceNoteRecorder> {
         return;
       }
 
+      if (!mounted) return;
       final controller = context.read<ReminderController>();
 
       await controller.updateReminder(

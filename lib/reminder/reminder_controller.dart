@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'reminder_model.dart';
@@ -16,27 +17,74 @@ class ReminderController extends ChangeNotifier {
 
   List<ReminderModel> get reminders => List.unmodifiable(_reminders);
 
+  String? alertWarning;
+  Future<void> _restoreAlert(ReminderModel reminder) async {
+    try {
+      await _scheduleReminder(reminder);
+    } catch (_) {
+      alertWarning =
+          'Your events are saved. Some alerts could not be prepared. Check notification and voice settings, then retry.';
+    }
+  }
+
+  int _session = 0;
+  bool _disposed = false;
+  Future<void>? _cloudLoad;
+  Future<void> syncCloud() {
+    if (!_service.cloudEnabled) return Future.value();
+    if (_cloudLoad != null) return _cloudLoad!;
+    final session = _session;
+    _cloudLoad = (() async {
+      await _service.sync();
+      if (_disposed || session != _session) return;
+      final updated = await _service.getReminders();
+      if (_disposed || session != _session) return;
+      for (final old in _reminders) {
+        if (!updated.any((r) => r.id == old.id)) {
+          await NotificationService.cancelReminder(old.id);
+        }
+      }
+      _reminders = updated;
+      alertWarning = null;
+      for (final r in updated) {
+        if (_disposed || session != _session) return;
+        await _restoreAlert(r);
+      }
+      if (!_disposed && session == _session) notifyListeners();
+    })().whenComplete(() => _cloudLoad = null);
+    return _cloudLoad!;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   // Load reminders and restore their scheduled notifications.
   Future<void> loadReminders() async {
-    _reminders = await _service.getReminders();
-
-    for (final reminder in _reminders) {
-      await _scheduleReminder(reminder);
+    final session = _session;
+    final loaded = await _service.getReminders();
+    if (_disposed || session != _session) return;
+    _reminders = loaded;
+    alertWarning = null;
+    for (final reminder in loaded) {
+      if (_disposed || session != _session) return;
+      await _restoreAlert(reminder);
     }
-
+    if (_disposed || session != _session) return;
     notifyListeners();
+    unawaited(syncCloud());
   }
 
   // Add reminder and schedule its notification.
   Future<void> addReminder(ReminderModel reminder) async {
-    await _scheduleReminder(reminder);
     await _service.addReminder(reminder);
     await loadReminders();
   }
 
   // Update reminder and reschedule its notification.
   Future<void> updateReminder(ReminderModel reminder) async {
-    await _scheduleReminder(reminder);
     await _service.updateReminder(reminder);
     await loadReminders();
   }
@@ -59,7 +107,6 @@ class ReminderController extends ChangeNotifier {
     );
 
     await _service.updateReminder(updatedReminder);
-    await _scheduleReminder(updatedReminder);
     await loadReminders();
   }
 
@@ -89,6 +136,8 @@ class ReminderController extends ChangeNotifier {
   }
 
   void resetSession() {
+    _session++;
+    alertWarning = null;
     _reminders = [];
     notifyListeners();
   }
@@ -112,6 +161,23 @@ class ReminderController extends ChangeNotifier {
     return _reminders.where((item) {
       return !item.isCompleted && item.occursOn(now);
     }).toList();
+  }
+
+  ReminderModel? nextEventForHome(DateTime now) {
+    final active = reminders
+        .where(
+          (r) =>
+              !r.isCompleted &&
+              (r.occursOn(now) || r.nextOccurrence(now).isAfter(now)),
+        )
+        .toList();
+    DateTime occurrence(ReminderModel r) =>
+        r.occursOn(now) ? r.occurrenceInYear(now.year) : r.nextOccurrence(now);
+    active.sort((a, b) {
+      final order = occurrence(a).compareTo(occurrence(b));
+      return order == 0 ? a.id.compareTo(b.id) : order;
+    });
+    return active.isEmpty ? null : active.first;
   }
 
   // Total count.

@@ -1,3 +1,4 @@
+import '../backend/community_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -55,6 +56,18 @@ class _HelpScreenState extends State<HelpScreen> {
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ListTile(
+          leading: const Icon(Icons.support_agent),
+          title: const Text('Support inbox'),
+          subtitle: const Text('Send a request and read replies from YaadX'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const CommunityScreen(initialTab: 1),
+            ),
+          ),
+        ),
         const ExpansionTile(
           title: Text('How do I save an important date?'),
           children: [

@@ -39,7 +39,7 @@ class _VerifyEmailScreenState
         .read<AuthController>()
         .reloadUser();
 
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
 
     final auth =
         context.read<AuthController>();
@@ -203,7 +203,7 @@ class _VerifyEmailScreenState
 
                           await checkVerification();
 
-                          if (!mounted) return;
+                          if (!mounted || !context.mounted) return;
 
                           setState(() {
                             checking = false;
@@ -263,7 +263,7 @@ class _VerifyEmailScreenState
                     await authController
                         .sendEmailVerification();
 
-                    if (!mounted) return;
+                    if (!mounted || !context.mounted) return;
 
                     ScaffoldMessenger.of(context)
                         .showSnackBar(
@@ -302,7 +302,7 @@ class _VerifyEmailScreenState
 
                   await authController.logout();
 
-                  if (!mounted) return;
+                  if (!mounted || !context.mounted) return;
 
                   Navigator.pop(context);
 

@@ -255,14 +255,14 @@ class _LoginScreenState
                           passwordController.text,
                     );
 
-                    if (!mounted) return;
+                    if (!mounted || !context.mounted) return;
 
                     if (result == null) {
 
                       await authController
                           .reloadUser();
 
-                      if (!mounted) return;
+                      if (!mounted || !context.mounted) return;
 
                       if (authController.isEmailVerified) {
 

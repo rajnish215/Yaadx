@@ -39,6 +39,9 @@ android {
 }
 
 dependencies {
+    // Match integration_test's runtime runner to native instrumentation tests.
+    debugImplementation("androidx.test:runner:1.6.2")
+    debugImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

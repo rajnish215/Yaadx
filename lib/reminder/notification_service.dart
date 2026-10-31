@@ -1,3 +1,4 @@
+import 'reminder_service.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
@@ -10,7 +11,6 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'reminder_model.dart';
-import 'reminder_service.dart';
 
 class NotificationService {
   NotificationService._();
@@ -73,7 +73,9 @@ class NotificationService {
   }
 
   static Future<bool> alertsEnabled() async =>
-      (await SharedPreferences.getInstance()).getBool('yaadx_alerts_enabled') ??
+      (await SharedPreferences.getInstance()).getBool(
+        ReminderService().alertsKey,
+      ) ??
       true;
 
   static Future<bool> permissionGranted() async {
@@ -97,10 +99,7 @@ class NotificationService {
   }
 
   static Future<void> setAlertsEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!await prefs.setBool('yaadx_alerts_enabled', enabled)) {
-      throw StateError('Could not save notification preference.');
-    }
+    await ReminderService().setAlertsPreference(enabled);
     if (!enabled) await cancelAll();
   }
 
@@ -128,13 +127,16 @@ class NotificationService {
 
     final event = reminder.eventDateTime;
     String? voiceUri;
+    bool voiceFailed = false;
     if (reminder.voiceAlert) {
-      voiceUri = await native.invokeMethod<String>('prepareVoice', {
-        'text':
-            "Today is ${reminder.name}'s ${reminder.eventType}. Remember to call or send your wishes.",
-      });
-      if (voiceUri == null) {
-        throw StateError('Voice alert could not be prepared.');
+      try {
+        voiceUri = await native.invokeMethod<String>('prepareVoice', {
+          'text':
+              "Tomorrow is ${reminder.name}'s ${reminder.eventType.toLowerCase()}.",
+        });
+        voiceFailed = voiceUri == null;
+      } catch (_) {
+        voiceFailed = true;
       }
     }
     await native.invokeMethod<void>('schedule', {
@@ -149,11 +151,16 @@ class NotificationService {
         'hour': event.hour,
         'minute': event.minute,
         'yearly': reminder.repeatYearly,
-        'advanceDays': reminder.advanceDays,
-        'voiceUri': voiceUri ?? '',
+        'advanceDays': reminder.voiceAlert && reminder.advanceDays == 0
+            ? 1
+            : reminder.advanceDays,
+        'tomorrowVoiceUri': voiceUri ?? '',
       }),
     });
     await _plugin.cancel(id: _notificationId(reminder.id));
+    if (voiceFailed) {
+      throw StateError('Normal alert scheduled; voice preparation failed.');
+    }
   }
 
   /// Handles notification taps and the "Send to..." action.

@@ -81,3 +81,11 @@ dist-ssr/
 
 .env
 .env.*
+# Backend secrets and generated artifacts
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/coverage/
+**/*service-account*.json
+**/firebase-adminsdk*.json
+*.pem

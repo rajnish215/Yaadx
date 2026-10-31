@@ -68,6 +68,8 @@ class AuthService {
     if (user == null) throw StateError('Please sign in again.');
     await user.updateDisplayName(name.trim());
     await user.reload();
+    await user.getIdToken(true);
+    await ReminderService().sync();
   }
 
   Future<void> changeEmail(String email, String password) async {

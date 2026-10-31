@@ -25,7 +25,10 @@ void main() {
       await service.useAccount('alice', migrateLegacy: true);
       expect((await service.getReminders()).single.name, 'Private event');
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.containsKey('yaadx_reminders'), false);
+      expect(
+        prefs.containsKey('yaadx_reminders'),
+        true,
+      ); // Original backup retained.
       await service.useAccount(null);
       expect(await service.getReminders(), isEmpty);
       await service.useAccount('bob', migrateLegacy: true);

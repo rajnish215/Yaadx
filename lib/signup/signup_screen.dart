@@ -265,7 +265,7 @@ class _SignupScreenState extends State<SignupScreen> {
   password: passwordController.text,
 );
 
-                    if (!mounted) return;
+                    if (!mounted || !context.mounted) return;
 
                     if (result == null) {
 

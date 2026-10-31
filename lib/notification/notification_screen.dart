@@ -1,3 +1,4 @@
+import '../backend/community_screen.dart';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,16 @@ class NotificationScreen extends StatelessWidget {
         backgroundColor: background,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'YaadX announcements',
+            icon: const Icon(Icons.campaign_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CommunityScreen()),
+            ),
+          ),
+        ],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
@@ -35,8 +46,7 @@ class NotificationScreen extends StatelessWidget {
       body: SafeArea(
         child: Consumer<ReminderController>(
           builder: (context, controller, child) {
-            final List<ReminderModel> upcoming =
-                controller.upcomingReminders;
+            final List<ReminderModel> upcoming = controller.upcomingReminders;
 
             if (upcoming.isEmpty) {
               return const _EmptyUpcomingEvent();
@@ -63,9 +73,7 @@ class NotificationScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.12),
-                    ),
+                    border: Border.all(color: accent.withValues(alpha: 0.12)),
                     boxShadow: [
                       BoxShadow(
                         color: accent.withValues(alpha: 0.07),
@@ -95,8 +103,7 @@ class NotificationScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   event.name,
@@ -131,10 +138,7 @@ class NotificationScreen extends StatelessWidget {
                       ),
                       if (event.note.trim().isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        _EventInfo(
-                          icon: Icons.notes_rounded,
-                          text: event.note,
-                        ),
+                        _EventInfo(icon: Icons.notes_rounded, text: event.note),
                       ],
                       const SizedBox(height: 20),
                       Container(
@@ -211,10 +215,7 @@ class NotificationScreen extends StatelessWidget {
 }
 
 class _EventInfo extends StatelessWidget {
-  const _EventInfo({
-    required this.icon,
-    required this.text,
-  });
+  const _EventInfo({required this.icon, required this.text});
 
   final IconData icon;
   final String text;

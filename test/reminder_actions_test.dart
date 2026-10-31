@@ -81,6 +81,8 @@ void main() {
         400,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.ensureVisible(find.text('Save Reminder'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Save Reminder'));
       await tester.pumpAndSettle();
       expect(controller.edits, 1);

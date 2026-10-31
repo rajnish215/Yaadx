@@ -1,0 +1,28 @@
+# Import only after backend/ and this file are pushed to the connected repository.
+# Run migrations separately with administrator credentials before deployment.
+services:
+  - type: web
+    name: yaadx-api
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /ready
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8080"
+      - key: FIREBASE_PROJECT_ID
+        value: yaadx-8e018
+      - key: DB_SCHEMA
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/firebase-admin.json
