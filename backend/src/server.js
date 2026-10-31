@@ -1,0 +1,12 @@
+import {createSuggestionProvider} from './suggestions.js';
+import {initializeApp} from 'firebase-admin/app';
+import {getAuth} from 'firebase-admin/auth';
+import {makePool,projectId,production} from './config.js';
+import {createApp} from './app.js';
+import {createStorage} from './storage.js';
+initializeApp({projectId});
+const pool=makePool();pool.on('error',()=>console.error('Database connection interrupted'));
+const app=createApp({pool,admin:{emails:process.env.ADMIN_EMAILS||''},suggestions:createSuggestionProvider(),storage:createStorage(),verifyToken:token=>getAuth().verifyIdToken(token,production)});
+const server=app.listen(Number(process.env.PORT||8080),process.env.HOST||'127.0.0.1',()=>console.log('YaadX API ready'));
+server.requestTimeout=15000;server.headersTimeout=10000;
+for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{server.close(async()=>{await pool.end();process.exit(0);});setTimeout(()=>process.exit(1),15000).unref();});
